@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
 
+const userRoute = require("./routes/user");
+
 dotenv.config();
 
 const app = express();
@@ -26,6 +28,8 @@ mongoose.connection.on("disconnected", () => {
 mongoose.connection.on("connected", () => {
   console.log("MongoDB Data Base connecting...");
 });
+
+app.use("/api/users", userRoute);
 
 const port = process.env.PORT || 5001;
 
