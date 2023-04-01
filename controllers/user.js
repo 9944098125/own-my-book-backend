@@ -6,8 +6,10 @@ const {
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const { generateToken } = require("../helpers/token");
-const { sendVerificationEmail } = require("../helpers/mailer");
+const generateCode = require("../helpers/generateCode");
+const { sendVerificationEmail, sendResetCode } = require("../helpers/mailer");
 const jwt = require("jsonwebtoken");
+const CodeModel = require("../models/Code");
 
 exports.register = async (req, res) => {
   try {
@@ -20,6 +22,7 @@ exports.register = async (req, res) => {
       bMonth,
       bDay,
       gender,
+      picture,
     } = req.body;
 
     if (!validateEmail(email)) {
@@ -63,6 +66,7 @@ exports.register = async (req, res) => {
       bMonth,
       bDay,
       gender,
+      picture,
     }).save();
     const emailVerificationToken = generateToken(
       { id: user._id.toString() },
@@ -73,6 +77,7 @@ exports.register = async (req, res) => {
     const token = generateToken({ id: user._id.toString() }, "7d");
     res.send({
       id: user._id,
+      email: user.email,
       picture: user.picture,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -87,11 +92,18 @@ exports.register = async (req, res) => {
 
 exports.activateAccount = async (req, res) => {
   try {
+    const validUser = req.user.id;
     const { token } = req.body;
     const user = jwt.verify(token, process.env.SECRET_TOKEN);
-    console.log(user);
+    // console.log(user);
+    // console.log(validUser);
     const check = await User.findById(user.id);
 
+    if (validUser !== user.id) {
+      return res
+        .status(400)
+        .json({ message: "You are not authorized to this page" });
+    }
     if (check.verified == true) {
       return res
         .status(400)
@@ -126,12 +138,87 @@ exports.login = async (req, res) => {
     const token = generateToken({ id: user._id.toString() }, "7d");
     res.send({
       id: user._id,
+      email: user.email,
       picture: user.picture,
       firstName: user.firstName,
       lastName: user.lastName,
       token: token,
       verified: user.verified,
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.sendVerification = async (req, res) => {
+  try {
+    const id = req.user.id;
+    const user = await User.findById(id);
+    if (user.verified === true) {
+      return res.status(400).json({
+        message: "This account is already activated.",
+      });
+    }
+    const emailVerificationToken = generateToken(
+      { id: user._id.toString() },
+      "30m"
+    );
+    const url = `${process.env.BASE_URL}/activate/${emailVerificationToken}`;
+    sendVerificationEmail(user.email, user.first_name, url);
+    return res.status(200).json({
+      message: "Email verification link has been sent to your email.",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.findUser = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email }).select("-password");
+    if (!user) {
+      return res.status(400).json({ message: "Account does not exist..." });
+    }
+    return res.status(200).json({
+      email: user.email,
+      picture: user.picture,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Could not search for account..." });
+  }
+};
+
+exports.sendResetPasswordCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email }).select("-password");
+    await CodeModel.findOneAndRemove({ user: user._id });
+    const code = generateCode(5);
+    const savedCode = await new CodeModel({
+      code,
+      user: user._id,
+    }).save();
+    sendResetCode(user.email, user.firstName, code);
+    return res.status(200).json({
+      message: "Email reset code has been sent to your email",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.validateResetCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email });
+    const DbCode = await CodeModel.findOne({ user: user._id });
+    if (DbCode.code !== code) {
+      return res.status(400).json({
+        message: "Verified code is wrong..",
+      });
+    }
+    return res.status(200).json({ message: "ok" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
