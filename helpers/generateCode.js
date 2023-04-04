@@ -1,4 +1,4 @@
-const generateCode = (length) => {
+module.exports = generateCode = (length) => {
   let code = "";
   let schema = "0123456789";
 
@@ -8,5 +8,3 @@ const generateCode = (length) => {
 
   return code;
 };
-
-module.exports = generateCode;

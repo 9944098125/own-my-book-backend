@@ -193,11 +193,11 @@ exports.sendResetPasswordCode = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email }).select("-password");
-    await CodeModel.findOneAndRemove({ user: user._id });
+    await CodeModel.findOneAndRemove({ userId: user._id });
     const code = generateCode(5);
     const savedCode = await new CodeModel({
       code,
-      user: user._id,
+      userId: user._id,
     }).save();
     sendResetCode(user.email, user.firstName, code);
     return res.status(200).json({
@@ -212,14 +212,33 @@ exports.validateResetCode = async (req, res) => {
   try {
     const { email, code } = req.body;
     const user = await User.findOne({ email });
-    const DbCode = await CodeModel.findOne({ user: user._id });
+    const DbCode = await CodeModel.findOne({ userId: user._id });
+    // console.log(DbCode, code, email, user);
     if (DbCode.code !== code) {
       return res.status(400).json({
         message: "Verified code is wrong..",
       });
     }
-    return res.status(200).json({ message: "ok" });
+    res.status(200).json({ message: "ok" });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const hashedPassword = await bcrypt.hashSync(password, 10);
+
+    const updatedUser = await User.findOneAndUpdate(
+      { email },
+      { password: hashedPassword }
+    );
+    res.status(200).json({
+      message: "User Password updated successfully",
+      user: updatedUser,
+    });
+  } catch (err) {
+    res.status(400).json({ message: "" });
   }
 };

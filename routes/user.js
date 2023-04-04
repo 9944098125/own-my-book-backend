@@ -7,6 +7,8 @@ const {
   sendVerification,
   findUser,
   sendResetPasswordCode,
+  validateResetCode,
+  changePassword,
 } = require("../controllers/user");
 
 const { authUser } = require("../middleware/auth");
@@ -23,6 +25,8 @@ router.route("/findUser").post(findUser);
 
 router.route("/sendResetCode").post(sendResetPasswordCode);
 
-router.route("/validateCode").post(validatePost);
+router.route("/validateResetCode").post(validateResetCode);
+
+router.route("/changePassword").patch(changePassword);
 
 module.exports = router;
